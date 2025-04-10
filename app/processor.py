@@ -7,28 +7,35 @@ from datetime import datetime
 import cv2
 import numpy as np
 from transformers import pipeline
+from transformers import AutoTokenizer, AutoModelForTokenClassification
 
 class DocumentProcessor:
     def __init__(self):
-        # Initialize NER pipeline
-        self.ner = pipeline("ner")
+        # Initialize LayoutLM model and tokenizer
+        model_path = "fine_tuned_layoutlm"  # Replace with your actual model path
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+        self.model = AutoModelForTokenClassification.from_pretrained(model_path)
     
     def preprocess_image(self, image_path):
         """Preprocess image to improve OCR quality"""
-        # Read the image
-        img = cv2.imread(image_path)
-        
-        # Convert to grayscale
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        
-        # Apply threshold to get black and white image
-        _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-        
-        # Save preprocessed image temporarily
-        temp_path = os.path.join(os.path.dirname(image_path), "temp_processed.jpg")
-        cv2.imwrite(temp_path, thresh)
-        
-        return temp_path
+        try:
+            # Read the image
+            img = cv2.imread(image_path)
+            
+            # Convert to grayscale
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            
+            # Apply threshold to get black and white image
+            _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+            
+            # Save preprocessed image temporarily
+            temp_path = os.path.join(os.path.dirname(image_path), "temp_processed.jpg")
+            cv2.imwrite(temp_path, thresh)
+            
+            return temp_path
+        except Exception as e:
+            print(f"Error preprocessing image: {e}")
+            return None
     
     def extract_text(self, image_path):
         """Extract text from image using OCR"""
@@ -72,7 +79,7 @@ class DocumentProcessor:
             r'[$€£]\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2}))'
         ]
         
-        for pattern in amount_patterns:
+        for pattern in amount_patterns:            
             matches = re.findall(pattern, text, re.IGNORECASE)
             if matches:
                 # Return the last match, as total is usually at the bottom
@@ -80,12 +87,17 @@ class DocumentProcessor:
         
         return None
     
-    def extract_vendor(self, text, entities):
+    def extract_vendor(self, text, tokens, ner_tags):
         """Extract vendor information"""
-        # First try to find company name from NER
-        company_entities = [entity for entity in entities if entity['entity'] == 'I-ORG' or entity['entity'] == 'B-ORG']
-        if company_entities:
-            return company_entities[0]['word']
+        vendor = ""
+        for i, tag in enumerate(ner_tags):
+            if tag == "B-VENDOR":  # Assuming 'VENDOR' tag for vendor name
+                vendor += tokens[i]
+            elif tag == "I-VENDOR":
+                vendor += " " + tokens[i]
+        
+        if vendor:
+            return vendor
         
         # Otherwise look for common patterns
         vendor_patterns = [
@@ -118,10 +130,37 @@ class DocumentProcessor:
         # Extract text
         raw_text = self.extract_text(image_path)
         
-        # Use NER to identify entities
-        entities = self.ner(raw_text)
+        # Tokenize with LayoutLM tokenizer
+        inputs = self.tokenizer(raw_text, return_tensors="pt")
+        
+        # Perform inference
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+        
+        # Extract predicted entities
+        predictions = torch.argmax(outputs.logits, dim=-1)
+        
+        # Convert token IDs to labels
+        labels = [self.model.config.id2label[i] for i in predictions[0].tolist()]
+        
+        # Map tokens to text
+        tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
+
+        # Remove special tokens
+        tokens = [
+            token
+            for token in tokens
+            if token not in self.tokenizer.all_special_tokens
+        ]
+
+        # Remove special labels
+        labels = labels[1 : len(tokens) + 1]
+
+        # Extract words from subtokens
+        words = [self.tokenizer.convert_tokens_to_string([tok]) for tok in tokens]
         
         # Extract structured data
+        # Here you need to replace entities with the new labels and words from LayoutLM
         result = {
             "date": self.extract_date(raw_text),
             "total_amount": self.extract_amount(raw_text),
