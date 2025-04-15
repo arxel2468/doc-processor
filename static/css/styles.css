@@ -83,63 +83,77 @@ header h1 {
 }
 
 .result-card {
-    background-color: white;
+    background: #ffffff;
     border-radius: 8px;
-    padding: 1.5rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    transition: all 0.3s ease;
 }
 
 .result-item {
-    flex: 1 1 30%;
+    padding: 15px;
+    border-bottom: 1px solid #f0f0f0;
 }
 
-.result-item.full-width {
-    flex: 1 1 100%;
-}
-
-/* static/css/styles.css (continued) */
 .result-item h3 {
-    color: var(--secondary-color);
-    margin-bottom: 0.5rem;
-    font-size: 1.1rem;
+    font-size: 14px;
+    color: #555;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .result-item p {
+    font-size: 16px;
+    color: #333;
+    margin: 0;
     word-break: break-word;
 }
 
-.result-item ul {
-    list-style-position: inside;
+/* Line items styling */
+#result-items {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
 }
 
-.result-item pre {
+#result-items li {
+    padding: 8px 0;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+#result-items li:last-child {
+    border-bottom: none;
+}
+
+/* Raw text area styling */
+#result-raw-text {
     background-color: #f8f9fa;
-    padding: 1rem;
+    padding: 12px;
     border-radius: 4px;
-    overflow-x: auto;
-    font-size: 0.9rem;
+    font-family: monospace;
+    font-size: 13px;
+    white-space: pre-wrap;
     max-height: 200px;
     overflow-y: auto;
 }
 
+/* Button styling enhancement */
 .btn {
-    background-color: var(--primary-color);
-    color: white;
+    background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
     border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: background-color 0.3s;
-    display: block;
-    margin: 2rem auto 0;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 50px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .btn:hover {
-    background-color: var(--secondary-color);
+    transform: translateY(-2px);
+    box-shadow: 0 7px 14px rgba(0, 0, 0, 0.15);
 }
 
 footer {
@@ -149,10 +163,10 @@ footer {
     font-size: 0.9rem;
 }
 
-/* Responsive adjustments */
+/* Responsive improvements */
 @media (max-width: 768px) {
-    .result-item {
-        flex: 1 1 100%;
+    .result-card {
+        grid-template-columns: 1fr;
     }
     
     .container {

@@ -100,14 +100,38 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function displayResults(data) {
-        // Display date
+        // Display date with confidence indicator if available
         resultDate.textContent = data.date || 'Not found';
+        if (data.date_confidence !== undefined) {
+            addConfidenceIndicator(resultDate, data.date_confidence);
+        }
         
-        // Display vendor
+        // Display vendor with confidence indicator if available
         resultVendor.textContent = data.vendor || 'Not found';
+        if (data.vendor_confidence !== undefined) {
+            addConfidenceIndicator(resultVendor, data.vendor_confidence);
+        }
         
-        // Display amount
+        // Display amount with confidence indicator if available
         resultAmount.textContent = data.total_amount || 'Not found';
+        if (data.total_amount_confidence !== undefined) {
+            addConfidenceIndicator(resultAmount, data.total_amount_confidence);
+        }
+
+        // Display invoice number with confidence if available
+        const invoiceElement = document.getElementById('result-invoice');
+        if (invoiceElement) {
+            invoiceElement.textContent = data.invoice_number || 'Not found';
+            if (data.invoice_number_confidence !== undefined) {
+                addConfidenceIndicator(invoiceElement, data.invoice_number_confidence);
+            }
+        }
+
+        // Display customer if available
+        const customerElement = document.getElementById('result-customer');
+        if (customerElement && data.customer) {
+            customerElement.textContent = data.customer;
+        }
         
         // Display line items
         if (data.items && data.items.length > 0) {
@@ -123,6 +147,27 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Display raw text
         resultRawText.textContent = data.raw_text || 'No text extracted';
+    }
+    
+    // Helper function to add confidence indicator
+    function addConfidenceIndicator(element, confidence) {
+        const span = document.createElement('span');
+        span.className = 'confidence-indicator';
+        
+        // Determine confidence level
+        let confidenceClass = 'low';
+        if (confidence >= 0.8) {
+            confidenceClass = 'high';
+        } else if (confidence >= 0.5) {
+            confidenceClass = 'medium';
+        }
+        
+        span.classList.add(confidenceClass);
+        span.title = `Confidence: ${Math.round(confidence * 100)}%`;
+        
+        // Add confidence dot after the text
+        element.appendChild(document.createTextNode(' '));
+        element.appendChild(span);
     }
     
     function showError(message) {

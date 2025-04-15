@@ -318,15 +318,45 @@ class DocumentProcessor:
 
     def extract_invoice_number(self, text, donut_output=None):
         """Extract invoice/receipt number."""
+        # Define confidence level for results
+        confidence = 0.0
+        best_match = "Not found"
+        
+        # First Strategy: Direct pattern match for invoice numbers 
+        inv_direct_patterns = [
+            r'\b(INV\s*0*1)\b',                     # Matches INV01, INV1, INV 1, etc.
+            r'\b(INV[0-9]{4,})\b',                  # Matches INV0001, INV12345, etc.
+            r'\bINVOICE\s+(?:NO\.?|NUMBER|#)?\s*([A-Za-z0-9-]+)', # Invoice NO. 12345
+            r'\bINV\s*(?:NO\.?|NUMBER|#)?\s*([A-Za-z0-9-]+)',    # INV NO. 12345
+        ]
+        
+        for pattern in inv_direct_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                # Use the first capture group if available, otherwise the whole match
+                candidate = match.group(1) if len(match.groups()) > 0 else match.group(0)
+                # Filter out false matches (words like INVOICE, BALANCE, etc.)
+                if not re.match(r'^\s*(INVOICE|BALANCE|DUE|TOTAL|DATE)\s*$', candidate, re.IGNORECASE):
+                    best_match = candidate
+                    confidence = 0.9
+                    logger.info(f"Found invoice number (direct pattern): {best_match} with confidence {confidence}")
+                    return best_match
+        
         # Strategy 1: Try to extract from Donut output
         if donut_output and "<s_invoice>" in donut_output:
             match = re.search(r'<s_invoice>(.*?)</s_invoice>', donut_output)
             if match:
-                return match.group(1).strip()
+                candidate = match.group(1).strip()
+                # Filter out false matches
+                if not re.match(r'^\s*(INVOICE|BALANCE|DUE|TOTAL|DATE)\s*$', candidate, re.IGNORECASE):
+                    if confidence < 0.8:
+                        best_match = candidate
+                        confidence = 0.8
+                        logger.info(f"Found invoice number (Donut): {best_match} with confidence {confidence}")
         
         # Strategy 2: Look for context near invoice labels
         invoice_labels = ["INVOICE", "INVOICE #", "INVOICE NO", "INVOICE NUMBER", "ORDER", "ORDER #", "RECEIPT", "RECEIPT #"]
-        invoice_section = self.extract_from_context(text, invoice_labels, ["DATE", "TOTAL", "AMOUNT"])
+        invoice_section = self.extract_from_context(text, invoice_labels, ["DATE", "TOTAL", "AMOUNT", "BALANCE", "DUE"])
         
         if invoice_section:
             # Try to extract invoice number patterns from the section
@@ -341,11 +371,19 @@ class DocumentProcessor:
                 match = re.search(pattern, invoice_section, re.IGNORECASE)
                 if match:
                     # Return the match, or the capture group if available
-                    return match.group(1) if len(match.groups()) > 0 else match.group(0)
+                    candidate = match.group(1) if len(match.groups()) > 0 else match.group(0)
+                    # Filter out false matches
+                    if not re.match(r'^\s*(INVOICE|BALANCE|DUE|TOTAL|DATE)\s*$', candidate, re.IGNORECASE):
+                        if confidence < 0.7:
+                            best_match = candidate
+                            confidence = 0.7
+                            logger.info(f"Found invoice number (context): {best_match} with confidence {confidence}")
             
             # If we have a section but no pattern match, return the section if it's short
-            if len(invoice_section) < 15:
-                return invoice_section
+            if confidence < 0.5 and len(invoice_section) < 15 and not re.match(r'^\s*(INVOICE|BALANCE|DUE|TOTAL|DATE)\s*$', invoice_section, re.IGNORECASE):
+                best_match = invoice_section
+                confidence = 0.5
+                logger.info(f"Found invoice number (short section): {best_match} with confidence {confidence}")
         
         # Strategy 3: Look for patterns in the full text
         inv_patterns = [
@@ -357,9 +395,15 @@ class DocumentProcessor:
         for pattern in inv_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                return match.group(1) if len(match.groups()) > 0 else match.group(0)
+                candidate = match.group(1) if len(match.groups()) > 0 else match.group(0)
+                # Filter out false matches
+                if not re.match(r'^\s*(INVOICE|BALANCE|DUE|TOTAL|DATE)\s*$', candidate, re.IGNORECASE):
+                    if confidence < 0.6:
+                        best_match = candidate
+                        confidence = 0.6
+                        logger.info(f"Found invoice number (full text): {best_match} with confidence {confidence}")
                 
-        return "Not found"
+        return best_match
 
     def extract_line_items(self, text, donut_output=None):
         """Extract line items from the document."""
@@ -492,6 +536,75 @@ class DocumentProcessor:
         
         return items
 
+    def extract_customer(self, text, donut_output=None):
+        """Extract customer information."""
+        # Strategy 1: Look for common customer/client labels
+        customer_labels = ["BILL TO", "SOLD TO", "CUSTOMER", "CLIENT", "RECIPIENT", "SHIP TO", "BUYER"]
+        customer_section = self.extract_from_context(text, customer_labels, ["INVOICE", "TOTAL", "VENDOR"])
+        
+        if customer_section:
+            # Clean up the section
+            lines = customer_section.strip().split('\n')
+            # First line is usually the name
+            if lines:
+                return lines[0].strip()
+        
+        # Strategy 2: Look for email pattern
+        email_match = re.search(r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)', text)
+        if email_match:
+            # Get the text near the email
+            email_index = text.find(email_match.group(0))
+            if email_index > 0:
+                # Look for a name above the email
+                email_context = text[max(0, email_index - 100):email_index].strip()
+                # Last line before email might be the name
+                lines = email_context.split('\n')
+                if lines:
+                    return lines[-1].strip()
+        
+        return "Not found"
+
+    def get_confidence_score(self, field, value, raw_text):
+        """Calculate confidence score for extracted fields."""
+        if value == "Not found":
+            return 0.0
+            
+        # Basic confidence based on field type and content
+        if field == "date":
+            # Higher confidence for well-formatted dates
+            if re.match(r'\b\d{1,2}[-/\.]\d{1,2}[-/\.]\d{4}\b', value) or \
+               re.match(r'\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2},? \d{4}\b', value, re.IGNORECASE):
+                return 0.9
+            elif re.search(r'\d{4}', value):  # Has a year
+                return 0.7
+            return 0.5
+            
+        elif field == "total_amount":
+            # Higher confidence for amounts with currency symbols
+            if re.match(r'[$€£₹]\s*\d+([.,]\d+)?', value):
+                return 0.9
+            elif re.match(r'\d+([.,]\d+)?', value):  # Just numbers
+                return 0.7
+            return 0.6
+            
+        elif field == "vendor":
+            # Higher confidence for vendors found at top of document
+            first_few_lines = '\n'.join(raw_text.split('\n')[:5])
+            if value in first_few_lines:
+                return 0.8
+            return 0.6
+            
+        elif field == "invoice_number":
+            # Higher confidence for invoice numbers with INV prefix
+            if re.match(r'INV[0-9-]+', value, re.IGNORECASE):
+                return 0.9
+            elif re.match(r'[A-Z0-9-]+', value):  # Alphanumeric
+                return 0.7
+            return 0.5
+            
+        # Default confidence
+        return 0.5
+        
     def process_document(self, file_path):
         """Process document and extract structured information."""
         try:
@@ -516,19 +629,33 @@ class DocumentProcessor:
             total_amount = self.extract_total(raw_text, donut_output)
             items = self.extract_line_items(raw_text, donut_output)
             
-            # Build result
+            # Additional data extraction
+            customer = self.extract_customer(raw_text, donut_output)
+            
+            # Calculate confidence scores
+            vendor_confidence = self.get_confidence_score("vendor", vendor, raw_text)
+            date_confidence = self.get_confidence_score("date", date, raw_text)
+            invoice_confidence = self.get_confidence_score("invoice_number", invoice_number, raw_text)
+            total_confidence = self.get_confidence_score("total_amount", total_amount, raw_text)
+            
+            # Build result with confidence scores
             result = {
                 "vendor": vendor,
+                "vendor_confidence": vendor_confidence,
                 "date": date,
+                "date_confidence": date_confidence,
                 "invoice_number": invoice_number,
+                "invoice_number_confidence": invoice_confidence,
                 "total_amount": total_amount,
+                "total_amount_confidence": total_confidence,
+                "customer": customer, 
                 "items": items,
                 "raw_text": raw_text
             }
             
             logger.info("Extracted information:")
             for key, value in result.items():
-                if key not in ["raw_text", "items"]:
+                if key not in ["raw_text", "items"] and not key.endswith("_confidence"):
                     logger.info(f"  {key}: {value}")
             
             return result
