@@ -1,0 +1,21 @@
+{
+    "document_path": "invoices/invoice_001.pdf",
+    "expected": {
+        "date": "Apr 11, 2025",
+        "vendor": "Niteswift",
+        "total": 198.00,
+        "invoice_number": "INV0001",
+        "line_items": [
+            {
+                "description": "Product A",
+                "quantity": 2,
+                "amount": 100.00
+            },
+            {
+                "description": "Product B",
+                "quantity": 1,
+                "amount": 98.00
+            }
+        ]
+    }
+} 

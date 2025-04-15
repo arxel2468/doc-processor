@@ -140,6 +140,7 @@ header h1 {
 
 /* Button styling enhancement */
 .btn {
+    text-align: center;
     background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
     border: none;
     color: white;
@@ -149,6 +150,7 @@ header h1 {
     letter-spacing: 0.5px;
     transition: all 0.3s ease;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin: 10px;
 }
 
 .btn:hover {
