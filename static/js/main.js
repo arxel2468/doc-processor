@@ -59,8 +59,6 @@ document.addEventListener('DOMContentLoaded', function() {
             showError('Please upload an image (JPG, PNG, BMP, TIFF) or PDF file.');
             return;
         }
-        const docType = document.getElementById('doc-type').value;
-
         
         // Show processing indicator
         uploadArea.style.display = 'none';
@@ -70,7 +68,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Create form data
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('doc_type', docType);
         
         // Send to backend
         fetch('/upload', {

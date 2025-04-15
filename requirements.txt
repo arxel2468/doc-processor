@@ -5,7 +5,12 @@ pytesseract
 transformers
 torch
 torchvision
+torchaudio
 opencv-python-headless
 Werkzeug
 numpy
-pdftoimage
+pdf2image
+pytest
+pytest-cov
+detecto
+sentencepiece
