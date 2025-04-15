@@ -7,29 +7,18 @@ Phase 1: Build the Core Technology
     Technical implementation:
 
     # Core processing pipeline using free/open-source tools
-    import pytesseract
-    from transformers import pipeline
-    from PIL import Image
-    import re
+    from donut_pipeline import run_donut
+from layoutlm_pipeline import extract_entities
+from feedback_loop import save_user_feedback
 
-    def process_document(image_path):
-        # Extract text using OCR
-        img = Image.open(image_path)
-        raw_text = pytesseract.image_to_string(img)
-        
-        # Use NER to identify entities
-        ner = pipeline("ner")
-        entities = ner(raw_text)
-        
-        # Extract structured data using regex and NLP
-        result = {
-            "date": extract_date(raw_text),
-            "total_amount": extract_amount(raw_text),
-            "vendor": extract_vendor(raw_text, entities),
-            "items": extract_line_items(raw_text)
-        }
-        
-        return result
+def process_document(image_path):
+    raw_text, layout = run_donut(image_path)  # OCR + layout
+
+    fields = extract_entities(raw_text, layout)
+    # fields = { 'date': ..., 'vendor': ..., 'amount': ..., 'items': [...] }
+
+    return fields
+
 
     Build a simple web interface:
         Upload area for documents
@@ -78,3 +67,51 @@ Phase 4: Prepare for Outreach
     Set up payment processing:
         Use Stripe or PayPal for subscription billing
         Implement secure payment flow
+
+
+Improve vendor/date/amount extraction (regex + structure)
+Use LayoutLM (better NER, but still free via Hugging Face)
+Add user login/signup (Flask-Login, free)
+Add dashboard to view processed docs
+Deploy to free hosting (Render/Fly.io)
+
+PART 2: Turn It Into a SaaS
+Once your extraction is better, let’s make this a sellable SaaS app.
+
+ 1. Add User Accounts
+Use Flask-Login or Auth0
+Each user can:
+Upload documents
+View past uploads
+Manage billing (Stripe)
+2. Add Billing (Stripe)
+Free tier: 5 docs/month
+Basic: $49/mo
+Premium: $199/mo
+Use Stripe Checkout or Billing
+3. Store Processed Results
+Use SQLite or PostgreSQL
+Save:
+File metadata
+Extracted fields
+User ID
+Timestamp
+4. Dashboard UI
+Show upload history
+Export as CSV/Excel
+Allow corrections / edits
+5. Deploy to Production
+Use one of these:
+
+Render.com (easiest)
+Fly.io
+DigitalOcean App Platform
+Docker + VPS
+🧱 Suggested Roadmap
+Phase	Focus
+✅ Phase 1	Build MVP (done)
+🔧 Phase 2	Improve OCR + NER accuracy
+🔐 Phase 3	Add user auth + dashboard
+💳 Phase 4	Add Stripe billing
+🚀 Phase 5	Production deployment
+📣 Phase 6	Marketing + outreach

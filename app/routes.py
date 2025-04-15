@@ -1,6 +1,6 @@
 # app/routes.py
 import os
-from flask import Blueprint, render_template, request, jsonify, current_app, flash, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, current_app
 from app.processor import DocumentProcessor
 from app.utils import allowed_file, save_uploaded_file
 
@@ -13,28 +13,27 @@ def index():
 
 @main.route('/upload', methods=['POST'])
 def upload_file():
-    # Check if file was uploaded
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
-    
+
     file = request.files['file']
-    
-    # Check if file was selected
+
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
-    
-    # Check if file type is allowed
+
     if not allowed_file(file.filename):
         return jsonify({'error': 'File type not allowed'}), 400
-    
+
     try:
-        # Save the file
         file_path = save_uploaded_file(file, current_app.config['UPLOAD_FOLDER'])
-        
-        # Process the document
         result = processor.process_document(file_path)
-        
         return jsonify(result)
-    
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@main.route('/test')
+def test_processing():
+    test_file = os.path.join(current_app.config['UPLOAD_FOLDER'], 'sample_invoice.jpg')
+    result = processor.process_document(test_file)
+    return jsonify(result)
